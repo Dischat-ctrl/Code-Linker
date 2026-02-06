@@ -33,14 +33,44 @@ function rewriteHtml(html: string, targetUrl: string): string {
   };
 
   const attributeRegex = /\s(?:href|src|action)=["']([^"']+)["']/gi;
-  const rewritten = html.replace(attributeRegex, (match, value) =>
+  let rewritten = html.replace(attributeRegex, (match, value) =>
     match.replace(value, rewriteAttribute(value))
   );
+
+  const srcsetRegex = /\ssrcset=["']([^"']+)["']/gi;
+  rewritten = rewritten.replace(srcsetRegex, (match, value) => {
+    const rewrittenSrcset = value
+      .split(",")
+      .map((part) => {
+        const [url, descriptor] = part.trim().split(/\s+/, 2);
+        const rewrittenUrl = rewriteAttribute(url);
+        return descriptor ? `${rewrittenUrl} ${descriptor}` : rewrittenUrl;
+      })
+      .join(", ");
+    return match.replace(value, rewrittenSrcset);
+  });
 
   return rewritten.replace(
     /<head([^>]*)>/i,
     `<head$1><base href="${baseUrl.toString()}">`
   );
+}
+
+function rewriteCss(css: string, targetUrl: string): string {
+  const baseUrl = new URL(targetUrl);
+  const proxyPrefix = "/api/proxy?url=";
+  return css.replace(/url\(([^)]+)\)/gi, (match, value) => {
+    const cleaned = value.trim().replace(/^['"]|['"]$/g, "");
+    if (!cleaned || cleaned.startsWith("data:") || cleaned.startsWith("#")) {
+      return match;
+    }
+    try {
+      const absolute = new URL(cleaned, baseUrl).toString();
+      return `url("${proxyPrefix}${encodeURIComponent(absolute)}")`;
+    } catch {
+      return match;
+    }
+  });
 }
 
 export async function registerRoutes(
@@ -116,6 +146,12 @@ export async function registerRoutes(
     if (contentType.includes("text/html")) {
       const html = await response.text();
       res.status(response.status).send(rewriteHtml(html, targetUrl));
+      return;
+    }
+
+    if (contentType.includes("text/css")) {
+      const css = await response.text();
+      res.status(response.status).send(rewriteCss(css, targetUrl));
       return;
     }
 
