@@ -12,6 +12,9 @@ export interface IStorage {
 
 export class DatabaseStorage implements IStorage {
   async getSessions(userId: string): Promise<ProxySession[]> {
+    if (!db) {
+      throw new Error("Database unavailable");
+    }
     return await db.select()
       .from(proxySessions)
       .where(eq(proxySessions.userId, userId))
@@ -19,6 +22,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createSession(session: InsertProxySession): Promise<ProxySession> {
+    if (!db) {
+      throw new Error("Database unavailable");
+    }
     const [newSession] = await db
       .insert(proxySessions)
       .values(session)
@@ -27,6 +33,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteSession(id: number, userId: string): Promise<void> {
+    if (!db) {
+      throw new Error("Database unavailable");
+    }
     // Ensure user owns the session
     await db.delete(proxySessions)
       .where(eq(proxySessions.id, id)); 
@@ -35,8 +44,43 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteSessionsByUser(userId: string): Promise<void> {
+    if (!db) {
+      throw new Error("Database unavailable");
+    }
     await db.delete(proxySessions).where(eq(proxySessions.userId, userId));
   }
 }
 
-export const storage = new DatabaseStorage();
+class MemoryStorage implements IStorage {
+  private sessions: ProxySession[] = [];
+  private nextId = 1;
+
+  async getSessions(userId: string): Promise<ProxySession[]> {
+    return this.sessions
+      .filter((session) => session.userId === userId)
+      .sort((a, b) => (b.lastAccessed?.getTime() || 0) - (a.lastAccessed?.getTime() || 0));
+  }
+
+  async createSession(session: InsertProxySession): Promise<ProxySession> {
+    const newSession: ProxySession = {
+      id: this.nextId++,
+      lastAccessed: new Date(),
+      isActive: session.isActive ?? true,
+      title: session.title ?? null,
+      url: session.url,
+      userId: session.userId,
+    };
+    this.sessions = [newSession, ...this.sessions];
+    return newSession;
+  }
+
+  async deleteSession(id: number, userId: string): Promise<void> {
+    this.sessions = this.sessions.filter((session) => !(session.id === id && session.userId === userId));
+  }
+
+  async deleteSessionsByUser(userId: string): Promise<void> {
+    this.sessions = this.sessions.filter((session) => session.userId !== userId);
+  }
+}
+
+export const storage = db ? new DatabaseStorage() : new MemoryStorage();
