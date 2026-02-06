@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Clock, Trash2, ExternalLink } from 'lucide-react';
 import { format } from 'date-fns';
 import { useProxySessions, useDeleteProxySession } from '@/hooks/use-proxy-sessions';
-import { cn } from '@/lib/utils';
 
 interface HistoryDrawerProps {
   isOpen: boolean;
@@ -14,6 +13,14 @@ interface HistoryDrawerProps {
 export function HistoryDrawer({ isOpen, onClose, onNavigate }: HistoryDrawerProps) {
   const { data: sessions, isLoading } = useProxySessions();
   const deleteSession = useDeleteProxySession();
+  const getFaviconUrl = (url: string) => {
+    try {
+      const parsed = new URL(url);
+      return `https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(parsed.origin)}`;
+    } catch {
+      return '';
+    }
+  };
 
   return (
     <AnimatePresence>
@@ -66,25 +73,30 @@ export function HistoryDrawer({ isOpen, onClose, onNavigate }: HistoryDrawerProp
                 sessions.map((session) => (
                   <div
                     key={session.id}
-                    className="group flex flex-col p-3 rounded-xl hover:bg-muted/30 border border-transparent hover:border-border transition-all"
+                    className="group flex flex-col px-3 py-2 rounded-lg hover:bg-muted/30 border border-transparent hover:border-border transition-all"
                   >
                     <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0" onClick={() => onNavigate(session.url)}>
-                         <h3 className="font-medium text-sm text-foreground truncate cursor-pointer hover:text-primary transition-colors">
-                           {session.title || session.url}
-                         </h3>
-                         <p className="text-xs font-mono text-muted-foreground truncate mt-0.5">
-                           {session.url}
-                         </p>
+                      <div className="flex-1 min-w-0 flex items-start gap-2" onClick={() => onNavigate(session.url)}>
+                         {session.url && (
+                           <img src={getFaviconUrl(session.url)} alt="" className="w-4 h-4 mt-0.5 rounded-sm" />
+                         )}
+                         <div className="min-w-0">
+                           <h3 className="font-medium text-xs text-foreground truncate cursor-pointer hover:text-primary transition-colors">
+                             {session.title || session.url}
+                           </h3>
+                           <p className="text-[10px] font-mono text-muted-foreground truncate mt-0.5">
+                             {session.url}
+                           </p>
+                         </div>
                       </div>
                       <button
                         onClick={() => deleteSession.mutate(session.id)}
-                        className="opacity-0 group-hover:opacity-100 p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-all"
+                        className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-all"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
-                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/10">
+                    <div className="flex items-center justify-between mt-1 pt-1 border-t border-border/10">
                       <span className="text-[10px] text-muted-foreground">
                         {session.lastAccessed ? format(new Date(session.lastAccessed), 'MMM d, h:mm a') : 'Unknown'}
                       </span>
