@@ -8,6 +8,9 @@ export interface Tab {
   title: string;
   url: string;
   active: boolean;
+  faviconUrl?: string;
+  loaded?: boolean;
+  lastActiveAt: number;
 }
 
 interface BrowserTabsProps {
@@ -32,15 +35,22 @@ export function BrowserTabs({ tabs, onActivate, onClose, onNewTab }: BrowserTabs
             className={cn(
               "group relative flex items-center min-w-[160px] max-w-[240px] h-9 px-3 rounded-t-lg cursor-pointer transition-colors border-t border-x border-transparent",
               tab.active
-                ? "bg-muted text-foreground border-border/50 z-10"
-                : "bg-transparent text-muted-foreground hover:bg-muted/30"
+                ? "browser-tab-active text-foreground border-border/50 z-10"
+                : "browser-tab text-muted-foreground hover:bg-muted/30"
             )}
             onClick={() => onActivate(tab.id)}
+            style={{
+              color: tab.active ? 'var(--browser-text)' : undefined,
+            }}
           >
-            <Globe className={cn(
-              "w-4 h-4 mr-2",
-              tab.active ? "text-primary" : "text-muted-foreground/70"
-            )} />
+            {tab.faviconUrl ? (
+              <img src={tab.faviconUrl} alt="" className="w-4 h-4 mr-2 rounded-sm" />
+            ) : (
+              <Globe className={cn(
+                "w-4 h-4 mr-2",
+                tab.active ? "text-primary" : "text-muted-foreground/70"
+              )} />
+            )}
             
             <span className="flex-1 text-xs font-mono truncate mr-2">
               {tab.title || "New Tab"}
@@ -61,7 +71,12 @@ export function BrowserTabs({ tabs, onActivate, onClose, onNewTab }: BrowserTabs
             
             {/* Active Tab Glow */}
             {tab.active && (
-              <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-primary to-transparent opacity-50" />
+              <div
+                className="absolute top-0 left-0 right-0 h-[1px] opacity-50"
+                style={{
+                  background: "linear-gradient(to right, transparent, var(--browser-accent, hsl(var(--primary))), transparent)",
+                }}
+              />
             )}
           </motion.div>
         ))}
