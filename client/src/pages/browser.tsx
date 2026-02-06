@@ -301,35 +301,24 @@ export default function BrowserPage() {
         }`}
       >
         {activeTab.url ? (
-          <div className="w-full h-full flex items-center justify-center p-6">
-            <div className="max-w-xl w-full bg-card/80 border border-border rounded-2xl p-8 text-center shadow-xl">
-              <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground mb-3">
-                Vista externa
-              </div>
-              <h2 className="text-2xl font-display font-bold mb-3">Este sitio se abre fuera</h2>
-              <p className="text-sm text-muted-foreground mb-6">
-                Para evitar bloqueos como los de CrazyGames, la navegación abre la web en una pestaña nueva.
-              </p>
-              <div className="flex flex-col gap-3">
-                <a
-                  href={activeTab.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="w-full bg-primary text-primary-foreground px-4 py-3 rounded-lg font-semibold"
-                >
-                  Abrir {activeTab.url}
-                </a>
-                <button
-                  onClick={() => {
-                    if (activeTab.url) {
-                      window.open(activeTab.url, '_blank', 'noopener,noreferrer');
-                    }
-                  }}
-                  className="w-full border border-border px-4 py-3 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:border-primary/50"
-                >
-                  Abrir en otra pestaña
-                </button>
-              </div>
+          <div className="w-full h-full flex flex-col">
+            {tabs.map((tab) =>
+              tab.url && tab.loaded ? (
+                <iframe
+                  key={tab.id}
+                  id={`proxy-frame-${tab.id}`}
+                  src={`/api/proxy?url=${encodeURIComponent(tab.url)}`}
+                  className="w-full h-full border-none bg-white"
+                  style={{ display: tab.active ? 'block' : 'none' }}
+                  title={`Content View ${tab.id}`}
+                  sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+                />
+              ) : null
+            )}
+            <div className="absolute top-0 right-0 p-2 pointer-events-none">
+              <span className="bg-black/70 text-white text-[10px] px-2 py-1 rounded font-mono backdrop-blur">
+                PROXY: {activeTab.url}
+              </span>
             </div>
           </div>
         ) : (

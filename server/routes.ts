@@ -5,6 +5,44 @@ import { api } from "@shared/routes";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
 import { z } from "zod";
 
+const proxyQuerySchema = z.object({
+  url: z.string().min(1, "URL is required"),
+});
+
+function normalizeTargetUrl(rawUrl: string): string {
+  if (!/^https?:\/\//i.test(rawUrl)) {
+    return `https://${rawUrl}`;
+  }
+  return rawUrl;
+}
+
+function rewriteHtml(html: string, targetUrl: string): string {
+  const baseUrl = new URL(targetUrl);
+  const proxyPrefix = "/api/proxy?url=";
+
+  const rewriteAttribute = (value: string) => {
+    if (value.startsWith("#") || value.startsWith("data:") || value.startsWith("mailto:")) {
+      return value;
+    }
+    try {
+      const absolute = new URL(value, baseUrl).toString();
+      return `${proxyPrefix}${encodeURIComponent(absolute)}`;
+    } catch {
+      return value;
+    }
+  };
+
+  const attributeRegex = /\s(?:href|src|action)=["']([^"']+)["']/gi;
+  const rewritten = html.replace(attributeRegex, (match, value) =>
+    match.replace(value, rewriteAttribute(value))
+  );
+
+  return rewritten.replace(
+    /<head([^>]*)>/i,
+    `<head$1><base href="${baseUrl.toString()}">`
+  );
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -45,6 +83,44 @@ export async function registerRoutes(
     const userId = (req.user as any).id;
     await storage.deleteSession(Number(req.params.id), userId);
     res.status(204).send();
+  });
+
+  app.get("/api/proxy", isAuthenticated, async (req, res) => {
+    const parsed = proxyQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({
+        message: parsed.error.errors[0].message,
+        field: parsed.error.errors[0].path.join("."),
+      });
+    }
+
+    const targetUrl = normalizeTargetUrl(parsed.data.url);
+    let response: Response;
+    try {
+      response = await fetch(targetUrl, {
+        redirect: "follow",
+        headers: {
+          "User-Agent": req.headers["user-agent"] ?? "Code-Linker Proxy",
+        },
+      });
+    } catch (error) {
+      console.error("Proxy fetch failed:", error);
+      return res.status(502).json({ message: "Proxy fetch failed" });
+    }
+
+    const contentType = response.headers.get("content-type") ?? "application/octet-stream";
+    res.setHeader("Content-Type", contentType);
+    res.setHeader("X-Frame-Options", "ALLOWALL");
+    res.setHeader("Content-Security-Policy", "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:;");
+
+    if (contentType.includes("text/html")) {
+      const html = await response.text();
+      res.status(response.status).send(rewriteHtml(html, targetUrl));
+      return;
+    }
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+    res.status(response.status).send(buffer);
   });
 
   // Seed function (optional, but good for testing)
