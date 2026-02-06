@@ -12,4 +12,4 @@ fontFamily: {
   display: ["'Oxanium'", "display"],
 }
 This app uses a "Browser in Browser" architecture.
-Authentication uses Replit Auth via /api/login.
+Authentication uses email/password via /api/auth/login.
