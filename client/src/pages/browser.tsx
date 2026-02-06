@@ -300,6 +300,7 @@ export default function BrowserPage() {
           isHome ? "bg-transparent" : "bg-background/80 backdrop-blur"
         }`}
       >
+      <div className="flex-1 relative bg-background/80 w-full h-full backdrop-blur">
         {activeTab.url ? (
           /* 
              NOTE: In a real proxy app, this would point to the backend proxy service.
@@ -334,6 +335,11 @@ export default function BrowserPage() {
               >
                 Abrir en nueva pestaña
               </a>
+            {/* Fallback overlay if X-Frame-Options blocks it (just a visual hint for the user) */}
+            <div className="absolute top-0 right-0 p-2 pointer-events-none">
+              <span className="bg-black/70 text-white text-[10px] px-2 py-1 rounded font-mono backdrop-blur">
+                PROXY: {activeTab.url}
+              </span>
             </div>
           </div>
         ) : (

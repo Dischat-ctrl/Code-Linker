@@ -81,6 +81,8 @@ class MemoryStorage implements IStorage {
   async deleteSessionsByUser(userId: string): Promise<void> {
     this.sessions = this.sessions.filter((session) => session.userId !== userId);
   }
+    await db.delete(proxySessions).where(eq(proxySessions.userId, userId));
+  }
 }
 
 export const storage = db ? new DatabaseStorage() : new MemoryStorage();

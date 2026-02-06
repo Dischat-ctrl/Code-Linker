@@ -110,6 +110,8 @@ class MemoryAuthStorage implements IAuthStorage {
   async deleteUser(id: string): Promise<void> {
     this.users.delete(id);
   }
+    await db.delete(users).where(eq(users.id, id));
+  }
 }
 
 export const authStorage = db ? new AuthStorage() : new MemoryAuthStorage();

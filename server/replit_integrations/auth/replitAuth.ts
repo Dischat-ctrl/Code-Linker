@@ -11,16 +11,24 @@ import MemoryStoreFactory from "memorystore";
 const SESSION_TTL = 7 * 24 * 60 * 60 * 1000; // 1 week
 
 export function getSession() {
+  const sessionStore = pool
+    ? new (connectPg(session))({
+        conString: process.env.DATABASE_URL,
+        createTableIfMissing: false,
+        ttl: SESSION_TTL,
+        tableName: "sessions",
+      })
+    : new (MemoryStoreFactory(session))({ checkPeriod: SESSION_TTL });
+  const pgStore = connectPg(session);
+  const sessionStore = new pgStore({
+    conString: process.env.DATABASE_URL,
+    createTableIfMissing: false,
+    ttl: SESSION_TTL,
+    tableName: "sessions",
+  });
   return session({
     secret: process.env.SESSION_SECRET || "dev-secret",
-    store: pool
-      ? new (connectPg(session))({
-          conString: process.env.DATABASE_URL,
-          createTableIfMissing: false,
-          ttl: SESSION_TTL,
-          tableName: "sessions",
-        })
-      : new (MemoryStoreFactory(session))({ checkPeriod: SESSION_TTL }),
+    store: sessionStore,
     resave: false,
     saveUninitialized: false,
     cookie: {
