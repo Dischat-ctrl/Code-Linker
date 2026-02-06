@@ -17,6 +17,11 @@ export async function ensureAuthSchema(): Promise<void> {
   const client = await pool.connect();
   try {
     await client.query(`alter table users add column if not exists password_hash varchar`);
+  } catch (error) {
+    console.warn(
+      "Skipping password_hash migration; database may be read-only or incompatible:",
+      error,
+    );
   } finally {
     client.release();
   }
