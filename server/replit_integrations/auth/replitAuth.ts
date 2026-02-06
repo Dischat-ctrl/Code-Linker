@@ -61,7 +61,7 @@ export async function setupAuth(app: Express) {
         try {
           const user = await authStorage.getUserByEmail(email);
           if (!user) return done(null, false, { message: "Invalid credentials" });
-          if (!verifyPassword(password, user.passwordHash)) {
+          if (!user.passwordHash || !verifyPassword(password, user.passwordHash)) {
             return done(null, false, { message: "Invalid credentials" });
           }
           return done(null, user);
