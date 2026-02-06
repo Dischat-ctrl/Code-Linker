@@ -12,3 +12,19 @@ if (!process.env.DATABASE_URL) {
 
 export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 export const db = drizzle(pool, { schema });
+
+export async function ensureAuthSchema(): Promise<void> {
+  const client = await pool.connect();
+  try {
+    await client.query(
+      `alter table if exists users add column if not exists password_hash varchar`
+    );
+  } catch (error) {
+    console.warn(
+      "Skipping password_hash migration; database may be read-only or incompatible:",
+      error,
+    );
+  } finally {
+    client.release();
+  }
+}

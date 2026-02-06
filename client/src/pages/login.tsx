@@ -1,18 +1,46 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useLocation } from 'wouter';
-import { Shield, Lock, Terminal, Globe, ChevronRight } from 'lucide-react';
+import { Shield, Lock, Terminal, Globe, ChevronRight, Mail, User } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export default function LoginPage() {
-  const { user, isAuthenticated } = useAuth();
+  const { isAuthenticated, login, register, isAuthenticating } = useAuth();
   const [, setLocation] = useLocation();
+  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [error, setError] = useState<string | null>(null);
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+    firstName: '',
+    lastName: '',
+  });
 
   // Redirect if already logged in
   if (isAuthenticated) {
     setLocation('/');
     return null;
   }
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError(null);
+    try {
+      if (mode === 'login') {
+        await login({ email: formData.email, password: formData.password });
+      } else {
+        await register({
+          email: formData.email,
+          password: formData.password,
+          firstName: formData.firstName || undefined,
+          lastName: formData.lastName || undefined,
+        });
+      }
+      setLocation('/');
+    } catch (err) {
+      setError('No se pudo autenticar. Revisa los datos.');
+    }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background relative overflow-hidden">
@@ -95,31 +123,103 @@ export default function LoginPage() {
               </div>
               
               <div>
-                <h3 className="text-2xl font-bold mb-2">Authentication Required</h3>
+                <h3 className="text-2xl font-bold mb-2">Acceso seguro</h3>
                 <p className="text-muted-foreground text-sm">
-                  Please verify your identity to access the terminal.
+                  Inicia sesión con tu email y contraseña.
                 </p>
               </div>
 
-              <div className="space-y-3">
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-background/50 border border-border/50 text-sm font-mono text-muted-foreground">
-                  <div className="w-2 h-2 rounded-full bg-green-500" />
-                  <span>Server Status: Nominal</span>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {mode === 'register' && (
+                  <div className="grid grid-cols-1 gap-3">
+                    <div className="relative">
+                      <User className="w-4 h-4 text-muted-foreground absolute left-3 top-3.5" />
+                      <input
+                        type="text"
+                        placeholder="Nombre"
+                        className="w-full rounded-lg border border-border/60 bg-background/60 pl-9 pr-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/60"
+                        value={formData.firstName}
+                        onChange={(event) => setFormData((prev) => ({ ...prev, firstName: event.target.value }))}
+                      />
+                    </div>
+                    <div className="relative">
+                      <User className="w-4 h-4 text-muted-foreground absolute left-3 top-3.5" />
+                      <input
+                        type="text"
+                        placeholder="Apellidos"
+                        className="w-full rounded-lg border border-border/60 bg-background/60 pl-9 pr-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/60"
+                        value={formData.lastName}
+                        onChange={(event) => setFormData((prev) => ({ ...prev, lastName: event.target.value }))}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="relative">
+                  <Mail className="w-4 h-4 text-muted-foreground absolute left-3 top-3.5" />
+                  <input
+                    type="email"
+                    placeholder="Email"
+                    required
+                    className="w-full rounded-lg border border-border/60 bg-background/60 pl-9 pr-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/60"
+                    value={formData.email}
+                    onChange={(event) => setFormData((prev) => ({ ...prev, email: event.target.value }))}
+                  />
                 </div>
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-background/50 border border-border/50 text-sm font-mono text-muted-foreground">
-                  <div className="w-2 h-2 rounded-full bg-green-500" />
-                  <span>Gateway: Connected</span>
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-muted-foreground absolute left-3 top-3.5" />
+                  <input
+                    type="password"
+                    placeholder="Contraseña"
+                    required
+                    className="w-full rounded-lg border border-border/60 bg-background/60 pl-9 pr-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/60"
+                    value={formData.password}
+                    onChange={(event) => setFormData((prev) => ({ ...prev, password: event.target.value }))}
+                  />
                 </div>
-              </div>
+
+                {error && (
+                  <div className="text-xs text-destructive bg-destructive/10 border border-destructive/40 rounded-lg px-3 py-2">
+                    {error}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={isAuthenticating}
+                  className="group w-full flex items-center justify-between px-6 py-4 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-xl transition-all shadow-[0_0_20px_-5px_hsla(var(--primary),0.5)] hover:shadow-[0_0_25px_-5px_hsla(var(--primary),0.6)] hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed"
+                >
+                  <span>{mode === 'login' ? 'Entrar' : 'Crear cuenta'}</span>
+                  <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                </button>
+              </form>
             </div>
 
-            <a 
-              href="/api/login"
-              className="group mt-8 w-full flex items-center justify-between px-6 py-4 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-xl transition-all shadow-[0_0_20px_-5px_hsla(var(--primary),0.5)] hover:shadow-[0_0_25px_-5px_hsla(var(--primary),0.6)] hover:-translate-y-0.5"
-            >
-              <span>Initialize Session</span>
-              <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-            </a>
+            <div className="mt-6 text-xs text-muted-foreground text-center">
+              {mode === 'login' ? (
+                <>
+                  ¿No tienes cuenta?{' '}
+                  <button
+                    type="button"
+                    onClick={() => setMode('register')}
+                    className="text-primary hover:underline"
+                  >
+                    Regístrate
+                  </button>
+                </>
+              ) : (
+                <>
+                  ¿Ya tienes cuenta?{' '}
+                  <button
+                    type="button"
+                    onClick={() => setMode('login')}
+                    className="text-primary hover:underline"
+                  >
+                    Inicia sesión
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </motion.div>
 

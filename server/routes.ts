@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
-import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
+import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
 import { z } from "zod";
 
 export async function registerRoutes(
@@ -13,28 +13,20 @@ export async function registerRoutes(
   await setupAuth(app);
   registerAuthRoutes(app);
 
-  // Protected middleware
-  const requireAuth = (req: any, res: any, next: any) => {
-    if (req.isAuthenticated()) {
-      return next();
-    }
-    res.status(401).json({ message: "Unauthorized" });
-  };
-
   // Proxy Sessions API
-  app.get(api.proxy.list.path, requireAuth, async (req, res) => {
-    const userId = (req.user as any).claims.sub;
+  app.get(api.proxy.list.path, isAuthenticated, async (req, res) => {
+    const userId = (req.user as any).id;
     const sessions = await storage.getSessions(userId);
     res.json(sessions);
   });
 
-  app.post(api.proxy.create.path, requireAuth, async (req, res) => {
+  app.post(api.proxy.create.path, isAuthenticated, async (req, res) => {
     try {
       const input = api.proxy.create.input.parse(req.body);
       // Force userId from auth
       const sessionData = {
         ...input,
-        userId: (req.user as any).claims.sub,
+        userId: (req.user as any).id,
       };
       const session = await storage.createSession(sessionData);
       res.status(201).json(session);
@@ -49,8 +41,8 @@ export async function registerRoutes(
     }
   });
 
-  app.delete(api.proxy.delete.path, requireAuth, async (req, res) => {
-    const userId = (req.user as any).claims.sub;
+  app.delete(api.proxy.delete.path, isAuthenticated, async (req, res) => {
+    const userId = (req.user as any).id;
     await storage.deleteSession(Number(req.params.id), userId);
     res.status(204).send();
   });

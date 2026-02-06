@@ -7,6 +7,7 @@ export interface IStorage {
   getSessions(userId: string): Promise<ProxySession[]>;
   createSession(session: InsertProxySession): Promise<ProxySession>;
   deleteSession(id: number, userId: string): Promise<void>;
+  deleteSessionsByUser(userId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -31,6 +32,10 @@ export class DatabaseStorage implements IStorage {
       .where(eq(proxySessions.id, id)); 
       // Note: In a real app we'd enforce userId check here too, 
       // but for MVP we assume the route handler checks or we add .where(and(eq(id), eq(userId)))
+  }
+
+  async deleteSessionsByUser(userId: string): Promise<void> {
+    await db.delete(proxySessions).where(eq(proxySessions.userId, userId));
   }
 }
 
