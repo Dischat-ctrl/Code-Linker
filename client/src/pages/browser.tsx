@@ -1,17 +1,18 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useCreateProxySession } from '@/hooks/use-proxy-sessions';
 import { BrowserTabs, type Tab } from '@/components/ui/browser-tabs';
 import { AddressBar } from '@/components/ui/address-bar';
 import { BrowserControls } from '@/components/ui/browser-controls';
 import { HistoryDrawer } from '@/components/history-drawer';
+import { SettingsDrawer, type BrowserSettings } from '@/components/settings-drawer';
 import { History, Settings, ShieldAlert, LogOut, User as UserIcon } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { useLocation } from 'wouter';
 
 // Mock home page content
 const HomePage = () => (
-  <div className="flex-1 flex flex-col items-center justify-center bg-background p-8 text-center animate-in fade-in zoom-in duration-500">
+  <div className="flex-1 flex flex-col items-center justify-center p-8 text-center animate-in fade-in zoom-in duration-500">
     <div className="mb-8 p-6 bg-primary/5 rounded-full ring-1 ring-primary/20">
        <ShieldAlert className="w-16 h-16 text-primary" />
     </div>
@@ -38,12 +39,36 @@ export default function BrowserPage() {
   const [, setLocation] = useLocation();
   const createSession = useCreateProxySession();
   
+  const defaultSettings: BrowserSettings = {
+    themeMode: 'dark',
+    preset: 'neon',
+    customStyle: {
+      chrome: '#0d0f14',
+      tab: '#151a24',
+      tabActive: '#1f2635',
+      accent: '#9b5cff',
+      text: '#f8fafc',
+    },
+    wallpaperUrl: '',
+    autoClearMinutes: 0,
+  };
+
   // Tab State
   const [tabs, setTabs] = useState<Tab[]>([
-    { id: '1', title: 'New Tab', url: '', active: true }
+    { id: '1', title: 'New Tab', url: '', active: true, faviconUrl: '', loaded: false, lastActiveAt: Date.now() }
   ]);
   
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settings, setSettings] = useState<BrowserSettings>(() => {
+    const stored = localStorage.getItem('browserSettings');
+    if (!stored) return defaultSettings;
+    try {
+      return { ...defaultSettings, ...JSON.parse(stored) };
+    } catch {
+      return defaultSettings;
+    }
+  });
   
   // Effect for Auth Redirect
   useEffect(() => {
@@ -54,13 +79,73 @@ export default function BrowserPage() {
 
   const activeTab = tabs.find(t => t.active) || tabs[0];
 
+  const userLabel = user?.firstName || user?.email?.split('@')[0] || 'User';
+
+  const themePresets: Record<string, { chrome: string; tab: string; tabActive: string; accent: string; text: string }> = {
+    neon: { chrome: '#0d0f14', tab: '#151a24', tabActive: '#1f2635', accent: '#9b5cff', text: '#f8fafc' },
+    slate: { chrome: '#0f172a', tab: '#1e293b', tabActive: '#334155', accent: '#38bdf8', text: '#e2e8f0' },
+    sunset: { chrome: '#2b1b1a', tab: '#3b2221', tabActive: '#4a2b29', accent: '#f97316', text: '#fff7ed' },
+    mono: { chrome: '#111111', tab: '#1f1f1f', tabActive: '#2b2b2b', accent: '#a3a3a3', text: '#fafafa' },
+  };
+
+  const appliedTheme = settings.preset === 'custom'
+    ? settings.customStyle
+    : themePresets[settings.preset] || themePresets.neon;
+
+  useEffect(() => {
+    localStorage.setItem('browserSettings', JSON.stringify(settings));
+  }, [settings]);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('theme-light', settings.themeMode === 'light');
+  }, [settings.themeMode]);
+
+  useEffect(() => {
+    if (settings.autoClearMinutes <= 0) return;
+    const interval = window.setInterval(() => {
+      const now = Date.now();
+      setTabs((prev) =>
+        prev.map((tab) => {
+          if (!tab.active && tab.loaded && now - tab.lastActiveAt > settings.autoClearMinutes * 60 * 1000) {
+            return { ...tab, loaded: false };
+          }
+          return tab;
+        })
+      );
+    }, 30000);
+    return () => window.clearInterval(interval);
+  }, [settings.autoClearMinutes]);
+
+  const formatTabTitle = (url: string) => {
+    try {
+      const parsed = new URL(url);
+      const path = parsed.pathname === '/' ? '' : parsed.pathname;
+      const query = parsed.search ? parsed.search : '';
+      return `${parsed.hostname}${path}${query}`;
+    } catch {
+      return url;
+    }
+  };
+
+  const getFaviconUrl = (url: string) => {
+    try {
+      const parsed = new URL(url);
+      return `https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(parsed.origin)}`;
+    } catch {
+      return '';
+    }
+  };
+
   // Tab Handlers
   const handleNewTab = () => {
     const newTab: Tab = {
       id: uuidv4(),
       title: 'New Tab',
       url: '',
-      active: true
+      active: true,
+      faviconUrl: '',
+      loaded: false,
+      lastActiveAt: Date.now(),
     };
     setTabs(prev => prev.map(t => ({ ...t, active: false })).concat(newTab));
   };
@@ -68,7 +153,7 @@ export default function BrowserPage() {
   const handleCloseTab = (id: string) => {
     if (tabs.length === 1) {
       // Don't close last tab, just reset it
-      setTabs([{ ...tabs[0], title: 'New Tab', url: '' }]);
+      setTabs([{ ...tabs[0], title: 'New Tab', url: '', faviconUrl: '', loaded: false }]);
       return;
     }
     
@@ -77,23 +162,37 @@ export default function BrowserPage() {
       // If we closed the active tab, activate the last one
       if (prev.find(t => t.id === id)?.active) {
         newTabs[newTabs.length - 1].active = true;
+        newTabs[newTabs.length - 1].lastActiveAt = Date.now();
+        if (newTabs[newTabs.length - 1].url) {
+          newTabs[newTabs.length - 1].loaded = true;
+        }
       }
       return newTabs;
     });
   };
 
   const handleActivateTab = (id: string) => {
-    setTabs(prev => prev.map(t => ({ ...t, active: t.id === id })));
+    setTabs(prev => prev.map(t => ({
+      ...t,
+      active: t.id === id,
+      lastActiveAt: t.id === id ? Date.now() : t.lastActiveAt,
+      loaded: t.id === id && t.url ? true : t.loaded,
+    })));
   };
 
   const handleNavigate = (url: string) => {
+    const title = formatTabTitle(url);
+    const faviconUrl = getFaviconUrl(url);
     // Update active tab
     setTabs(prev => prev.map(t => {
       if (t.active) {
         return {
           ...t,
           url,
-          title: url.replace(/^https?:\/\//, '').substring(0, 20) + '...'
+          title,
+          faviconUrl,
+          loaded: true,
+          lastActiveAt: Date.now(),
         };
       }
       return t;
@@ -102,7 +201,7 @@ export default function BrowserPage() {
     // Persist to backend
     createSession.mutate({
       url,
-      title: 'Browsing Session',
+      title,
       userId: user?.id || 'anonymous',
       isActive: true
     });
@@ -110,8 +209,23 @@ export default function BrowserPage() {
 
   if (isAuthLoading) return null; // Or a loading spinner
 
+  const isHome = !activeTab?.url;
+
   return (
-    <div className="flex flex-col h-screen bg-background overflow-hidden">
+    <div
+      className="flex flex-col h-screen bg-background overflow-hidden"
+      style={{
+        backgroundImage: settings.wallpaperUrl ? `url(${settings.wallpaperUrl})` : undefined,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+        ['--browser-chrome-bg' as any]: appliedTheme.chrome,
+        ['--browser-tab-bg' as any]: appliedTheme.tab,
+        ['--browser-tab-active-bg' as any]: appliedTheme.tabActive,
+        ['--browser-accent' as any]: appliedTheme.accent,
+        ['--browser-text' as any]: appliedTheme.text,
+      }}
+    >
       {/* Top Bar (Chrome) */}
       <div className="flex flex-col shrink-0 border-b border-border bg-card/95 backdrop-blur z-20 browser-chrome">
         
@@ -130,7 +244,7 @@ export default function BrowserPage() {
           <div className="flex items-center gap-2 pl-2 border-l border-border/20 ml-2">
              <div className="hidden md:flex items-center gap-2 text-xs font-mono text-muted-foreground mr-2">
                 <UserIcon className="w-3 h-3" />
-                <span>{user?.firstName || 'User'}</span>
+                <span>{userLabel}</span>
              </div>
              <button 
                 onClick={() => logout()}
@@ -170,6 +284,7 @@ export default function BrowserPage() {
                 <History className="w-4 h-4" />
               </button>
               <button 
+                onClick={() => setSettingsOpen(true)}
                 className="p-2 rounded-lg hover:bg-muted/50 text-foreground transition-colors"
                 title="Settings"
               >
@@ -180,28 +295,41 @@ export default function BrowserPage() {
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 relative bg-background w-full h-full">
+      <div
+        className={`flex-1 relative w-full h-full ${
+          isHome ? "bg-transparent" : "bg-background/80 backdrop-blur"
+        }`}
+      >
         {activeTab.url ? (
-          /* 
-             NOTE: In a real proxy app, this would point to the backend proxy service.
-             Since we can't implement a full proxy backend here, we use a placeholder approach
-             or try to load safely if it allows framing.
-          */
-          <div className="w-full h-full flex flex-col">
-            <iframe 
-               id="proxy-frame"
-               key={activeTab.id} // Re-render on tab switch
-               src={activeTab.url}
-               className="w-full h-full border-none bg-white"
-               title="Content View"
-               sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
-               onError={(e) => console.error("Frame load error", e)}
-            />
-            {/* Fallback overlay if X-Frame-Options blocks it (just a visual hint for the user) */}
-            <div className="absolute top-0 right-0 p-2 pointer-events-none">
-               <span className="bg-black/70 text-white text-[10px] px-2 py-1 rounded font-mono backdrop-blur">
-                 PROXY: {activeTab.url}
-               </span>
+          <div className="w-full h-full flex items-center justify-center p-6">
+            <div className="max-w-xl w-full bg-card/80 border border-border rounded-2xl p-8 text-center shadow-xl">
+              <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground mb-3">
+                Vista externa
+              </div>
+              <h2 className="text-2xl font-display font-bold mb-3">Este sitio se abre fuera</h2>
+              <p className="text-sm text-muted-foreground mb-6">
+                Para evitar bloqueos como los de CrazyGames, la navegación abre la web en una pestaña nueva.
+              </p>
+              <div className="flex flex-col gap-3">
+                <a
+                  href={activeTab.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-full bg-primary text-primary-foreground px-4 py-3 rounded-lg font-semibold"
+                >
+                  Abrir {activeTab.url}
+                </a>
+                <button
+                  onClick={() => {
+                    if (activeTab.url) {
+                      window.open(activeTab.url, '_blank', 'noopener,noreferrer');
+                    }
+                  }}
+                  className="w-full border border-border px-4 py-3 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:border-primary/50"
+                >
+                  Abrir en otra pestaña
+                </button>
+              </div>
             </div>
           </div>
         ) : (
@@ -217,6 +345,17 @@ export default function BrowserPage() {
           handleNavigate(url);
           setHistoryOpen(false);
         }} 
+      />
+
+      <SettingsDrawer
+        isOpen={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        settings={settings}
+        onChange={setSettings}
+        onPurgeAccount={async () => {
+          await fetch('/api/account/purge', { method: 'DELETE', credentials: 'include' });
+          setLocation('/login');
+        }}
       />
     </div>
   );
