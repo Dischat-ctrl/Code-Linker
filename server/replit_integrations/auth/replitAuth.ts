@@ -5,10 +5,20 @@ import connectPg from "connect-pg-simple";
 import { Strategy as LocalStrategy } from "passport-local";
 import crypto from "crypto";
 import { authStorage } from "./storage";
+import { pool } from "../../db";
+import MemoryStoreFactory from "memorystore";
 
 const SESSION_TTL = 7 * 24 * 60 * 60 * 1000; // 1 week
 
 export function getSession() {
+  const sessionStore = pool
+    ? new (connectPg(session))({
+        conString: process.env.DATABASE_URL,
+        createTableIfMissing: false,
+        ttl: SESSION_TTL,
+        tableName: "sessions",
+      })
+    : new (MemoryStoreFactory(session))({ checkPeriod: SESSION_TTL });
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
     conString: process.env.DATABASE_URL,
