@@ -19,6 +19,13 @@ export function getSession() {
         tableName: "sessions",
       })
     : new (MemoryStoreFactory(session))({ checkPeriod: SESSION_TTL });
+  const pgStore = connectPg(session);
+  const sessionStore = new pgStore({
+    conString: process.env.DATABASE_URL,
+    createTableIfMissing: false,
+    ttl: SESSION_TTL,
+    tableName: "sessions",
+  });
   return session({
     secret: process.env.SESSION_SECRET || "dev-secret",
     store: sessionStore,

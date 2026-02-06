@@ -15,6 +15,10 @@ export async function ensureAuthSchema(): Promise<void> {
     console.warn("DATABASE_URL not set; using in-memory storage for auth.");
     return;
   }
+export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+export const db = drizzle(pool, { schema });
+
+export async function ensureAuthSchema(): Promise<void> {
   const client = await pool.connect();
   try {
     await client.query(
