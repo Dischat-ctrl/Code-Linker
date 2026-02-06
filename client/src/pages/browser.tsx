@@ -12,7 +12,7 @@ import { useLocation } from 'wouter';
 
 // Mock home page content
 const HomePage = () => (
-  <div className="flex-1 flex flex-col items-center justify-center bg-background p-8 text-center animate-in fade-in zoom-in duration-500">
+  <div className="flex-1 flex flex-col items-center justify-center p-8 text-center animate-in fade-in zoom-in duration-500">
     <div className="mb-8 p-6 bg-primary/5 rounded-full ring-1 ring-primary/20">
        <ShieldAlert className="w-16 h-16 text-primary" />
     </div>
@@ -209,6 +209,8 @@ export default function BrowserPage() {
 
   if (isAuthLoading) return null; // Or a loading spinner
 
+  const isHome = !activeTab?.url;
+
   return (
     <div
       className="flex flex-col h-screen bg-background overflow-hidden"
@@ -293,7 +295,11 @@ export default function BrowserPage() {
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 relative bg-background/80 w-full h-full backdrop-blur">
+      <div
+        className={`flex-1 relative w-full h-full ${
+          isHome ? "bg-transparent" : "bg-background/80 backdrop-blur"
+        }`}
+      >
         {activeTab.url ? (
           /* 
              NOTE: In a real proxy app, this would point to the backend proxy service.
@@ -315,11 +321,19 @@ export default function BrowserPage() {
                 />
               ) : null
             )}
-            {/* Fallback overlay if X-Frame-Options blocks it (just a visual hint for the user) */}
-            <div className="absolute top-0 right-0 p-2 pointer-events-none">
+            {/* Fallback overlay if X-Frame-Options blocks it */}
+            <div className="absolute top-0 right-0 p-2 flex items-center gap-2">
               <span className="bg-black/70 text-white text-[10px] px-2 py-1 rounded font-mono backdrop-blur">
                 PROXY: {activeTab.url}
               </span>
+              <a
+                href={activeTab.url}
+                target="_blank"
+                rel="noreferrer"
+                className="bg-primary text-primary-foreground text-[10px] px-2 py-1 rounded font-mono"
+              >
+                Abrir en nueva pestaña
+              </a>
             </div>
           </div>
         ) : (
